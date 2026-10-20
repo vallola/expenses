@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs" defer></script>
+</head>
+<body class="bg-zinc-50 text-zinc-900 font-sans antialiased min-h-screen" x-data="expenseApp()">
+    
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        
+        <!-- Header -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 pb-6 border-b border-zinc-200">
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight text-zinc-900">Панель управления</h1>
+                <p class="text-sm text-zinc-500 mt-0.5">Учет и модерация расходов всех пользователей системы.</p>
+            </div>
+            <button @click="openCreateModal()" class="inline-flex items-center justify-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-50 shadow hover:bg-zinc-800 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Добавить расход
+            </button>
+        </div>
+
+        <!-- Filters Toolbar (Shadcn Card style) -->
+        <div class="bg-white rounded-xl border border-zinc-200 shadow-xs p-5 mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+            <div>
+                <label class="block text-xs font-medium text-zinc-700 mb-1.5">Пользователь</label>
+                <select x-model="selectedUser" class="flex h-9 w-full rounded-md border border-zinc-200 bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950">
+                    <option value="">Все пользователи</option>
+                    <template x-for="user in users" :key="user.id">
+                        <option :value="user.id" x-text="user.name + ' (' + user.id + ')'"></option>
+                    </template>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-zinc-700 mb-1.5">Категория</label>
+                <select x-model="selectedCategory" class="flex h-9 w-full rounded-md border border-zinc-200 bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950">
+                    <option value="">Все категории</option>
+                    <template x-for="cat in categories">
+                        <option :value="cat" x-text="cat"></option>
+                    </template>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-zinc-700 mb-1.5">С даты</label>
+                <input type="datetime-local" x-model="startDate" class="flex h-9 w-full rounded-md border border-zinc-200 bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-zinc-700 mb-1.5">По дату</label>
+                <input type="datetime-local" x-model="endDate" class="flex h-9 w-full rounded-md border border-zinc-200 bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950">
+            </div>
+            <div class="lg:col-span-4 flex justify-between items-center pt-3 border-t border-zinc-100 text-xs text-zinc-500">
+                <span>Показано записей: <strong class="text-zinc-900 font-semibold" x-text="expenses.length"></strong></span>
+                <button @click="selectedUser=''; selectedCategory=''; startDate=''; endDate='';" class="text-zinc-600 hover:text-zinc-900 font-medium transition underline underline-offset-4">Сбросить фильтры</button>
+            </div>
+        </div>
+
+        <!-- Expenses Table Container -->
+        <div class="bg-white rounded-xl border border-zinc-200 shadow-xs overflow-hidden">
+            <!-- Desktop Table View -->
+            <div class="hidden md:block overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-zinc-200 bg-zinc-50/50 text-zinc-500 text-xs font-medium">
+                            <th class="py-3 px-4">ID</th>
+                            <th class="py-3 px-4">Пользователь</th>
+                            <th class="py-3 px-4">Сумма</th>
+                            <th class="py-3 px-4">Категория</th>
+                            <th class="py-3 px-4">Дата</th>
+                            <th class="py-3 px-4">Комментарий</th>
+                            <th class="py-3 px-4 text-right">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-zinc-200 text-sm">
+                        <template x-for="exp in filteredExpenses" :key="exp.id">
+                            <tr class="hover:bg-zinc-50/50 transition-colors">
+                                <td class="py-3 px-4 font-mono text-xs text-zinc-400" x-text="'#' + exp.id"></td>
+                                <td class="py-3 px-4 font-medium text-zinc-900" x-text="getUserName(exp.user_id)"></td>
+                                <td class="py-3 px-4 font-semibold text-zinc-900" x-text="Number(exp.amount).toLocaleString('ru-RU') + ' ₽'"></td>
+                                <td class="py-3 px-4">
+                                    <span class="inline-flex items-center rounded-md bg-zinc-100 px-2 py-1 text-xs font-medium text-zinc-800 capitalize" x-text="exp.category"></span>
+                                </td>
+                                <td class="py-3 px-4 text-zinc-500 text-xs" x-text="formatDate(exp.spent_at)"></td>
+                                <td class="py-3 px-4 text-zinc-600 max-w-xs truncate" x-text="exp.comment || '—'"></td>
+                                <td class="py-3 px-4 text-right space-x-2">
+                                    <button @click="editExpense(exp)" class="text-xs font-medium text-zinc-600 hover:text-zinc-900 px-2.5 py-1 rounded-md border border-zinc-200 hover:bg-zinc-100 transition">Изменить</button>
+                                    <button @click="deleteExpense(exp.id)" class="text-xs font-medium text-red-600 hover:text-red-700 px-2.5 py-1 rounded-md border border-red-100 hover:bg-red-50 transition">Удалить</button>
+                                </td>
+                            </tr>
+                        </template>
+                        <template x-if="filteredExpenses.length === 0">
+                            <tr>
+                                <td colspan="7" class="py-12 text-center text-zinc-500 text-sm">
+                                    Расходов по заданным параметрам не найдено.
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile Card View -->
+            <div class="block md:hidden divide-y divide-zinc-200">
+                <template x-for="exp in filteredExpenses" :key="exp.id">
+                    <div class="p-4 space-y-2.5">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <span class="inline-flex items-center rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-800 capitalize mb-1" x-text="exp.category"></span>
+                                <h4 class="font-bold text-zinc-900 text-base" x-text="Number(exp.amount).toLocaleString('ru-RU') + ' ₽'"></h4>
+                            </div>
+                            <span class="text-xs font-mono text-zinc-400" x-text="'#' + exp.id"></span>
+                        </div>
+                        <div class="text-xs text-zinc-500 space-y-1 pt-1">
+                            <p><strong>Пользователь:</strong> <span class="text-zinc-700" x-text="getUserName(exp.user_id)"></span></p>
+                            <p><strong>Дата:</strong> <span class="text-zinc-700" x-text="formatDate(exp.spent_at)"></span></p>
+                            <p x-show="exp.comment"><strong>Комментарий:</strong> <span class="text-zinc-700" x-text="exp.comment"></span></p>
+                        </div>
+                        <div class="flex justify-end space-x-2 pt-2 border-t border-zinc-100">
+                            <button @click="editExpense(exp)" class="text-xs font-medium text-zinc-600 px-3 py-1 rounded-md border border-zinc-200">Изменить</button>
+                            <button @click="deleteExpense(exp.id)" class="text-xs font-medium text-red-600 px-3 py-1 rounded-md border border-red-100 bg-red-50/50">Удалить</button>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="filteredExpenses.length === 0">
+                    <div class="py-8 text-center text-zinc-500 text-sm">Расходов не найдено</div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shadcn Style Dialog Modal -->
+    <div x-show="showModal" class="fixed inset-0 bg-zinc-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 transition-all" style="display: none;" x-transition.opacity>
+        <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-zinc-200" @click.outside="showModal = false" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="scale-95 opacity-0" x-transition:enter-end="scale-100 opacity-100">
+            <div class="flex justify-between items-center mb-5 pb-3 border-b border-zinc-100">
+                <h2 class="text-lg font-semibold text-zinc-900 tracking-tight" x-text="isEditing ? 'Редактировать расход' : 'Новый расход'"></h2>
+                <button @click="showModal = false" class="text-zinc-400 hover:text-zinc-600 p-1 rounded-md transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <form @submit.prevent="saveExpense" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-zinc-700 mb-1.5">Пользователь</label>
+                    <select x-model.number="form.user_id" required class="flex h-9 w-full rounded-md border border-zinc-200 bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950">
+                        <option value="">Выберите пользователя</option>
+                        <template x-for="user in users" :key="user.id">
+                            <option :value="user.id" x-text="user.name + ' (' + user.id + ')'"></option>
+                        </template>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-zinc-700 mb-1.5">Сумма (₽)</label>
+                    <input type="number" step="0.01" x-model.number="form.amount" required placeholder="0.00" class="flex h-9 w-full rounded-md border border-zinc-200 bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-zinc-700 mb-1.5">Категория</label>
+                    <select x-model="form.category" required class="flex h-9 w-full rounded-md border border-zinc-200 bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950">
+                        <template x-for="cat in categories">
+                            <option :value="cat" x-text="cat"></option>
+                        </template>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-zinc-700 mb-1.5">Дата и время</label>
+                    <input type="datetime-local" x-model="form.spent_at" required class="flex h-9 w-full rounded-md border border-zinc-200 bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-zinc-700 mb-1.5">Комментарий</label>
+                    <input type="text" x-model="form.comment" placeholder="Необязательно" class="flex h-9 w-full rounded-md border border-zinc-200 bg-transparent px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-zinc-950">
+                </div>
+                <div class="flex justify-end gap-2 pt-4 border-t border-zinc-100">
+                    <button type="button" @click="showModal = false" class="inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-900 shadow-xs hover:bg-zinc-100 transition-colors">Отмена</button>
+                    <button type="submit" class="inline-flex items-center justify-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-50 shadow hover:bg-zinc-800 transition-colors">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Script Logic -->
+    <script>
+        function expenseApp() {
+            return {
+                expenses: [],
+                users: [],
+                categories: ["еда", "транспорт", "жильё", "развлечения", "здоровье", "покупки", "другое"],
+                selectedUser: '',
+                selectedCategory: '',
+                startDate: '',
+                endDate: '',
+                showModal: false,
+                isEditing: false,
+                form: { id: null, user_id: '', amount: '', category: 'еда', spent_at: '', comment: '' },
+
+                async init() {
+                    await Promise.all([this.fetchUsers(), this.fetchExpenses()]);
+                    this.$watch('selectedUser', () => this.fetchExpenses());
+                    this.$watch('selectedCategory', () => this.fetchExpenses());
+                    this.$watch('startDate', () => this.fetchExpenses());
+                    this.$watch('endDate', () => this.fetchExpenses());
+                },
+
+                async fetchUsers() {
+                    let res = await fetch('/api/users');
+                    this.users = await res.json() || [];
+                },
+
+                async fetchExpenses() {
+                    let params = new URLSearchParams();
+                    if (this.selectedUser !== '') {
+                        params.append('user_id', this.selectedUser);
+                    }
+                    if (this.selectedCategory !== '') {
+                        params.append('category', this.selectedCategory);
+                    }
+                    if (this.startDate !== '') {
+                        params.append('start_date', new Date(this.startDate).toISOString());
+                    }
+                    if (this.endDate !== '') {
+                        params.append('end_date', new Date(this.endDate).toISOString());
+                    }
+                    
+                    let url = '/api/expenses';
+                    let queryString = params.toString();
+                    if (queryString) {
+                        url += '?' + queryString;
+                    }
+                    
+                    let res = await fetch(url);
+                    this.expenses = await res.json() || [];
+                },
+
+                get filteredExpenses() {
+                    return this.expenses;
+                },
+
+                getUserName(userId) {
+                    let user = this.users.find(u => u.id === userId);
+                    return user ? user.name + ' (' + user.id + ')' : userId;
+                },
+
+                formatDate(dateStr) {
+                    if (!dateStr) return '';
+                    return new Date(dateStr).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
+                },
+
+                openCreateModal() {
+                    this.isEditing = false;
+                    this.form = { id: null, user_id: this.users.length > 0 ? this.users[0].id : '', amount: '', category: 'еда', spent_at: new Date().toISOString().slice(0,16), comment: '' };
+                    this.showModal = true;
+                },
+
+                editExpense(exp) {
+                    this.isEditing = true;
+                    this.form = { 
+                        id: exp.id, 
+                        user_id: exp.user_id, 
+                        amount: exp.amount, 
+                        category: exp.category, 
+                        spent_at: exp.spent_at ? exp.spent_at.slice(0,16) : '', 
+                        comment: exp.comment || '' 
+                    };
+                    this.showModal = true;
+                },
+
+                async saveExpense() {
+                    let url = '/api/expenses';
+                    let method = 'POST';
+                    if (this.isEditing) {
+                        url += '/' + this.form.id;
+                        method = 'PUT';
+                    }
+
+                    let payload = {
+                        user_id: Number(this.form.user_id),
+                        amount: Number(this.form.amount),
+                        category: this.form.category,
+                        spent_at: new Date(this.form.spent_at).toISOString(),
+                        comment: this.form.comment ? this.form.comment : null
+                    };
+
+                    let res = await fetch(url, {
+                        method: method,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (res.ok) {
+                        this.showModal = false;
+                        await this.fetchExpenses();
+                    } else {
+                        alert('Ошибка сохранения');
+                    }
+                },
+
+                async deleteExpense(id) {
+                    if (!confirm('Вы уверены, что хотите удалить эту запись?')) return;
+                    let res = await fetch('/api/expenses/' + id, { method: 'DELETE' });
+                    if (res.ok) {
+                        await this.fetchExpenses();
+                    } else {
+                        alert('Ошибка удаления');
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
