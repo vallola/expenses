@@ -38,7 +38,7 @@ func main() {
 
 	repo := postgres.NewPostgres(dbPool)
 	svc := service.NewExpenseService(repo)
-	restServer := http.NewServer(svc)
+	restServer := http.NewServer(svc, log)
 
 	bot, err := telegram.NewBot(cfg.BotToken, svc, cfg, log)
 	if err != nil {

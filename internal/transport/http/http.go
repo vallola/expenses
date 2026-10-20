@@ -3,7 +3,6 @@ package http
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"strconv"
 	"text/template"
@@ -13,17 +12,21 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/vallola/expenses/internal/domain"
 	"github.com/vallola/expenses/internal/service"
+	"go.uber.org/zap"
+	"moul.io/chizap"
 )
 
 type Server struct {
 	service *service.ExpenseService
 	router  *chi.Mux
+	log		*zap.Logger
 }
 
-func NewServer(svc *service.ExpenseService) *Server {
+func NewServer(svc *service.ExpenseService, log *zap.Logger) *Server {
 	s := &Server{
 		service: svc,
 		router:  chi.NewRouter(),
+		log: log,
 	}
 	s.setupRoutes()
 	return s
@@ -34,14 +37,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) setupRoutes() {
-	// Standard middleware
-	s.router.Use(middleware.Logger)
+	s.router.Use(chizap.New(s.log, &chizap.Opts{
+		WithReferer:   true,
+		WithUserAgent: true,
+	}))
 	s.router.Use(middleware.Recoverer)
 
-	// Web Dashboard UI
 	s.router.Get("/", s.handleDashboard)
 
-	// REST API Group
 	s.router.Route("/api", func(r chi.Router) {
 		r.Get("/users", s.listUsers)
 		r.Get("/expenses", s.listExpenses)
@@ -50,8 +53,6 @@ func (s *Server) setupRoutes() {
 		r.Delete("/expenses/{id}", s.deleteExpense)
 	})
 }
-
-// --- Handlers ---
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	tmpl, err := template.ParseFiles("templates/dashboard.html")
@@ -67,7 +68,6 @@ func (s *Server) listUsers(w http.ResponseWriter, r *http.Request) {
 	
 	users, err := s.service.GetUsers(ctx)
 	if err != nil {
-		log.Printf("list users error: %v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -82,16 +82,13 @@ func (s *Server) listExpenses(w http.ResponseWriter, r *http.Request) {
 
 	if uidStr := r.URL.Query().Get("user_id"); uidStr != "" {
 		if uid, err := strconv.ParseInt(uidStr, 10, 64); err == nil {
-			log.Printf("%d\n", uid)
 			filter.UserID = &uid
 		}
 	}
 	if cat := r.URL.Query().Get("category"); cat != "" {
-			log.Printf("%s\n", cat)
 		filter.Category = &cat
 	}
 
-	// Parse start_date query parameter
 	if startStr := r.URL.Query().Get("start_date"); startStr != "" {
 		if t, err := time.Parse(time.RFC3339, startStr); err == nil {
 			filter.StartDate = &t
@@ -100,7 +97,6 @@ func (s *Server) listExpenses(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Parse end_date query parameter
 	if endStr := r.URL.Query().Get("end_date"); endStr != "" {
 		if t, err := time.Parse(time.RFC3339, endStr); err == nil {
 			filter.EndDate = &t
@@ -109,11 +105,8 @@ func (s *Server) listExpenses(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	log.Printf("%+v\n", filter)
-
 	expenses, err := s.service.ListExpenses(ctx, filter)
 	if err != nil {
-		log.Printf("list expenses error: %v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
